@@ -100,6 +100,18 @@ class Admin(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class Master(Base):
+    """Мастер компании. Получает уведомления по своему виду оборудования."""
+
+    __tablename__ = "masters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger)
+    name: Mapped[str] = mapped_column(String(128))
+    kind: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Broadcast(Base):
     __tablename__ = "broadcasts"
 

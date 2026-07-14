@@ -127,6 +127,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "🛠 Админ-панель",
         "uz": "🛠 Admin-panel",
     },
+    "choose_master": {
+        "ru": "По какому оборудованию вызвать мастера?",
+        "uz": "Qaysi jihoz bo‘yicha usta chaqiramiz?",
+    },
+    "btn_any_master": {"ru": "🧰 Любой мастер", "uz": "🧰 Istalgan usta"},
     "master_request_sent": {
         "ru": "🧰 Заявка на вызов мастера отправлена. Скоро свяжемся!",
         "uz": "🧰 Usta chaqirish arizasi yuborildi. Tez orada bog‘lanamiz!",
@@ -242,6 +247,29 @@ TEXTS: dict[str, dict[str, str]] = {
     "a_already_super": {"ru": "Этот пользователь уже супер-админ.", "uz": "Bu foydalanuvchi allaqachon super-admin."},
     "a_admin_added": {"ru": "✅ Админ {id} добавлен.", "uz": "✅ Admin {id} qo‘shildi."},
     "a_admin_removed": {"ru": "Админ удалён", "uz": "Admin o‘chirildi"},
+    "a_btn_masters": {"ru": "👷 Мастера", "uz": "👷 Ustalar"},
+    "a_masters_title": {"ru": "👷 Мастера компании\n", "uz": "👷 Kompaniya ustalari\n"},
+    "a_btn_add_master": {"ru": "➕ Добавить мастера", "uz": "➕ Usta qo‘shish"},
+    "a_btn_del_master": {"ru": "🗑 Удалить: {name}", "uz": "🗑 O‘chirish: {name}"},
+    "a_ask_master_id": {
+        "ru": "Пришлите Telegram ID мастера (число) или выберите из списка админов ниже.\nВажно: мастер должен сам запустить бота, иначе уведомления ему не дойдут.",
+        "uz": "Ustaning Telegram ID raqamini yuboring (raqam) yoki quyidagi adminlar ro‘yxatidan tanlang.\nMuhim: usta botni o‘zi ishga tushirishi kerak, aks holda xabarlar yetib bormaydi.",
+    },
+    "a_master_exists": {
+        "ru": "Такой мастер с этим видом оборудования уже есть.",
+        "uz": "Bunday usta bu jihoz turi bilan allaqachon mavjud.",
+    },
+    "a_confirm_del_master": {
+        "ru": "Удалить мастера {name}?",
+        "uz": "{name} ustani o‘chirasizmi?",
+    },
+    "a_ask_master_name": {"ru": "Имя мастера:", "uz": "Usta ismi:"},
+    "a_ask_master_kind": {
+        "ru": "За какое оборудование отвечает мастер? Выберите или напишите свой вариант.",
+        "uz": "Usta qaysi jihozga mas’ul? Tanlang yoki o‘zingiznikini yozing.",
+    },
+    "a_master_added": {"ru": "✅ Мастер {name} добавлен.", "uz": "✅ Usta {name} qo‘shildi."},
+    "a_master_removed": {"ru": "Мастер удалён", "uz": "Usta o‘chirildi"},
 
     # ================= РАССЫЛКА =================
     "bc_seg_all": {"ru": "Все", "uz": "Hammaga"},
@@ -276,6 +304,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "n_emergency": {
         "ru": "🚨 АВАРИЙНАЯ ЗАЯВКА\nКлиент: {name} ({phone})\nid: {id}",
         "uz": "🚨 FAVQULODDA ARIZA\nMijoz: {name} ({phone})\nid: {id}",
+    },
+    "n_master_kind": {
+        "ru": "🧰 Вызов мастера\nКлиент: {name} ({phone})\nid: {id}\nОборудование: {kind}",
+        "uz": "🧰 Usta chaqiruvi\nMijoz: {name} ({phone})\nid: {id}\nJihoz: {kind}",
     },
     "n_booking": {
         "ru": "🗓 Запись на профилактику\nКлиент: {name} ({phone})\nid: {id}\nОборудование: {kind}",

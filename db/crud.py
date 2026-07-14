@@ -5,7 +5,16 @@ from sqlalchemy.orm import selectinload
 
 from config import settings as app_config
 from db.base import async_session
-from db.models import Admin, Broadcast, Equipment, ReminderLog, ServiceRequest, Settings, User
+from db.models import (
+    Admin,
+    Broadcast,
+    Equipment,
+    Master,
+    ReminderLog,
+    ServiceRequest,
+    Settings,
+    User,
+)
 
 
 # ---------- Настройки бота ----------
@@ -72,6 +81,46 @@ async def remove_admin(telegram_id: int) -> None:
 async def list_admins() -> list[Admin]:
     async with async_session() as s:
         res = await s.scalars(select(Admin).order_by(Admin.created_at))
+        return list(res)
+
+
+# ---------- Мастера ----------
+
+async def add_master(telegram_id: int, name: str, kind: str) -> bool:
+    """Добавляет мастера. False — такой мастер с этим видом уже есть (дубль)."""
+    async with async_session() as s:
+        exists = await s.scalar(
+            select(Master.id).where(Master.telegram_id == telegram_id, Master.kind == kind)
+        )
+        if exists:
+            return False
+        s.add(Master(telegram_id=telegram_id, name=name, kind=kind))
+        await s.commit()
+        return True
+
+
+async def get_master(master_id: int) -> Master | None:
+    async with async_session() as s:
+        return await s.get(Master, master_id)
+
+
+async def remove_master(master_id: int) -> None:
+    async with async_session() as s:
+        m = await s.get(Master, master_id)
+        if m:
+            await s.delete(m)
+            await s.commit()
+
+
+async def list_masters() -> list[Master]:
+    async with async_session() as s:
+        res = await s.scalars(select(Master).order_by(Master.created_at))
+        return list(res)
+
+
+async def masters_for_kind(kind: str) -> list[Master]:
+    async with async_session() as s:
+        res = await s.scalars(select(Master).where(Master.kind == kind))
         return list(res)
 
 
