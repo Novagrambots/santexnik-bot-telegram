@@ -9,6 +9,8 @@ from db import crud
 from db.models import User
 from i18n import kind_label, t
 from keyboards.common import (
+    NOT_MENU,
+    cancel_kb,
     equipment_item_kb,
     kinds_kb,
     main_menu_kb,
@@ -17,7 +19,7 @@ from keyboards.common import (
     skip_kb,
 )
 from services.access import is_admin
-from services.notify import notify_admins
+from services.notify import notify_masters
 from services.reminders import (
     add_months,
     calc_next_service_date,
@@ -43,7 +45,8 @@ def _require(user: User | None) -> bool:
 # ---------- Мой список оборудования ----------
 
 @router.message(F.text.in_({t("btn_my_equipment", "ru"), t("btn_my_equipment", "uz")}))
-async def my_equipment(message: Message, user: User | None):
+async def my_equipment(message: Message, state: FSMContext, user: User | None):
+    await state.clear()
     if not _require(user):
         await message.answer(t("not_registered"))
         return
@@ -76,6 +79,7 @@ async def delete_eq(cb: CallbackQuery, user: User | None):
 
 @router.message(F.text.in_({t("btn_add_equipment", "ru"), t("btn_add_equipment", "uz")}))
 async def add_start(message: Message, state: FSMContext, user: User | None):
+    await state.clear()
     if not _require(user):
         await message.answer(t("not_registered"))
         return
@@ -96,11 +100,11 @@ async def add_kind_cb(cb: CallbackQuery, state: FSMContext, lang: str):
 @router.callback_query(AddEq.kind, F.data == "kind_other")
 async def add_kind_other(cb: CallbackQuery, lang: str):
     await cb.message.edit_reply_markup(reply_markup=None)
-    await cb.message.answer(t("ask_kind_custom", lang))
+    await cb.message.answer(t("ask_kind_custom", lang), reply_markup=cancel_kb(lang))
     await cb.answer()
 
 
-@router.message(AddEq.kind, F.text)
+@router.message(AddEq.kind, NOT_MENU)
 async def add_kind_text(message: Message, state: FSMContext, lang: str):
     await state.update_data(kind=message.text.strip())
     await state.set_state(AddEq.model)
@@ -112,22 +116,22 @@ async def add_model_skip(cb: CallbackQuery, state: FSMContext, lang: str):
     await state.update_data(model=None)
     await state.set_state(AddEq.install_date)
     await cb.message.edit_reply_markup(reply_markup=None)
-    await cb.message.answer(t("ask_install_date", lang))
+    await cb.message.answer(t("ask_install_date", lang), reply_markup=cancel_kb(lang))
     await cb.answer()
 
 
-@router.message(AddEq.model, F.text)
+@router.message(AddEq.model, NOT_MENU)
 async def add_model_text(message: Message, state: FSMContext, lang: str):
     await state.update_data(model=message.text.strip())
     await state.set_state(AddEq.install_date)
-    await message.answer(t("ask_install_date", lang))
+    await message.answer(t("ask_install_date", lang), reply_markup=cancel_kb(lang))
 
 
-@router.message(AddEq.install_date, F.text)
+@router.message(AddEq.install_date, NOT_MENU)
 async def add_install_date(message: Message, state: FSMContext, lang: str):
     d = parse_date(message.text)
     if not d:
-        await message.answer(t("bad_date", lang))
+        await message.answer(t("bad_date", lang), reply_markup=cancel_kb(lang))
         return
     await state.update_data(install_date=d.isoformat())
     await state.set_state(AddEq.period)
@@ -172,8 +176,8 @@ async def reminder_book(cb: CallbackQuery, user: User | None, lang: str):
     await crud.create_request(user.telegram_id, "запись", equipment_id=eq_id)
     await cb.message.edit_reply_markup(reply_markup=None)
     await cb.message.answer(t("booked", lang))
-    await notify_admins(
-        cb.bot, "n_booking", kind_code=eq.kind,
+    await notify_masters(
+        cb.bot, "n_booking", eq.kind,
         name=user.full_name, phone=user.phone or "—", id=user.telegram_id,
     )
     await cb.answer()

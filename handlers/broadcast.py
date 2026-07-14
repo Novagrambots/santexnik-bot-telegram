@@ -6,7 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from db import crud
 from i18n import kind_label, t
-from keyboards.common import KIND_CODES
+from keyboards.common import KIND_CODES, MENU_TEXTS, cancel_kb
 from services.access import IsAdmin
 from services.broadcast import run_broadcast
 
@@ -57,11 +57,13 @@ async def bc_segment(cb: CallbackQuery, state: FSMContext, lang: str):
         return
     await state.update_data(segment=segment, count=len(recipients))
     await state.set_state(BC.content)
-    await cb.message.edit_text(t("bc_ask_content", lang, n=len(recipients)))
+    await cb.message.edit_text(
+        t("bc_ask_content", lang, n=len(recipients)), reply_markup=cancel_kb(lang)
+    )
     await cb.answer()
 
 
-@router.message(BC.content)
+@router.message(BC.content, ~F.text.in_(MENU_TEXTS))
 async def bc_content(message: Message, state: FSMContext, lang: str):
     await state.update_data(from_chat_id=message.chat.id, message_id=message.message_id)
     await state.set_state(BC.confirm)

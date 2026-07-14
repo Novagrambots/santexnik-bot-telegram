@@ -4,13 +4,24 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
+from contextlib import suppress
+
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from db import crud
 from db.models import User
 from i18n import t
-from keyboards.common import lang_kb, main_menu_kb, phone_kb
-from services.access import is_admin
+from keyboards.common import NOT_MENU, lang_kb, main_menu_kb, phone_kb
+from services.access import is_admin, is_super_admin
 
 router = Router()
+
+
+def _back_kb(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t("a_btn_back", lang), callback_data="reg_restart")]]
+    )
 
 
 async def send_main_menu(message: Message, lang: str, admin: bool) -> None:
@@ -47,11 +58,22 @@ async def reg_lang(cb: CallbackQuery, state: FSMContext):
     await state.update_data(lang=lang)
     await state.set_state(Reg.name)
     await cb.message.edit_reply_markup(reply_markup=None)
-    await cb.message.answer(t("ask_name", lang))
+    await cb.message.answer(t("ask_name", lang), reply_markup=_back_kb(lang))
     await cb.answer()
 
 
-@router.message(Reg.name, F.text)
+@router.callback_query(F.data == "reg_restart")
+async def reg_restart(cb: CallbackQuery, state: FSMContext):
+    # «Назад» в регистрации — возврат к выбору языка
+    await state.clear()
+    await state.set_state(Reg.lang)
+    with suppress(TelegramBadRequest):
+        await cb.message.edit_reply_markup(reply_markup=None)
+    await cb.message.answer(t("choose_lang"), reply_markup=lang_kb())
+    await cb.answer()
+
+
+@router.message(Reg.name, NOT_MENU)
 async def reg_name(message: Message, state: FSMContext):
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -65,7 +87,7 @@ async def reg_phone_contact(message: Message, state: FSMContext):
     await _finish_registration(message, state, message.contact.phone_number)
 
 
-@router.message(Reg.phone, F.text)
+@router.message(Reg.phone, NOT_MENU)
 async def reg_phone_text(message: Message, state: FSMContext):
     # разрешаем ввести номер вручную, если не нажали кнопку
     await _finish_registration(message, state, message.text.strip())
@@ -84,11 +106,33 @@ async def _finish_registration(message: Message, state: FSMContext, phone: str):
 # --- Смена языка из меню ---
 
 @router.message(F.text.in_({t("btn_change_lang", "ru"), t("btn_change_lang", "uz")}))
-async def change_lang(message: Message, user: User | None):
+async def change_lang(message: Message, state: FSMContext, user: User | None):
+    await state.clear()
     if not user:
         await message.answer(t("not_registered"))
         return
     await message.answer(t("choose_lang"), reply_markup=lang_kb())
+
+
+@router.callback_query(F.data == "fsm_cancel")
+async def fsm_cancel(cb: CallbackQuery, state: FSMContext, lang: str):
+    """Универсальная отмена любого FSM-потока (кнопка «❌ Отмена»)."""
+    current = await state.get_state()
+    await state.clear()
+    with suppress(TelegramBadRequest):
+        await cb.message.edit_reply_markup(reply_markup=None)
+    admin = await is_admin(cb.from_user.id)
+    if admin and current and (current.startswith("AdmState") or current.startswith("BC")):
+        # отменили админский поток — возвращаем в админ-панель
+        from handlers.admin import admin_menu_kb
+
+        await cb.message.answer(
+            t("a_panel_title", lang), reply_markup=admin_menu_kb(lang, is_super_admin(cb.from_user.id))
+        )
+    else:
+        await cb.message.answer(t("cancelled", lang))
+        await send_main_menu(cb.message, lang, admin)
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("lang:"))
