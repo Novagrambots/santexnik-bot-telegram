@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 def _run_upgrade() -> None:
     cfg = Config("alembic.ini")
+    # не даём env.py перенастроить логирование бота (см. migrations/env.py)
+    cfg.attributes["skip_logging_config"] = True
     command.upgrade(cfg, "head")
 
 

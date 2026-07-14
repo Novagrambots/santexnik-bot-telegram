@@ -14,8 +14,11 @@ config = context.config
 # URL берём из настроек приложения (.env), а не из alembic.ini
 config.set_main_option("sqlalchemy.url", settings.db_url)
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Настраиваем логирование из alembic.ini только при запуске через CLI.
+# При программном запуске из бота (db/migrate.py) пропускаем, иначе fileConfig
+# перезапишет конфиг логов бота (root=WARN) и бот "замолчит" после миграций.
+if config.config_file_name is not None and not config.attributes.get("skip_logging_config"):
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
