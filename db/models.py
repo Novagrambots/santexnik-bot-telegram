@@ -14,6 +14,8 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     lang: Mapped[str] = mapped_column(String(2), default="ru")
     is_active: Mapped[bool] = mapped_column(default=True)  # False = заблокировал бота
+    total_paid: Mapped[int] = mapped_column(BigInteger, default=0)      # всего оплачено, сум
+    bonus_balance: Mapped[int] = mapped_column(BigInteger, default=0)   # баланс бонусов, сум
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     equipment: Mapped[list["Equipment"]] = relationship(
@@ -88,6 +90,9 @@ class Settings(Base):
     reminder_minute: Mapped[int] = mapped_column(default=0)
     reminder_stages: Mapped[str] = mapped_column(String(64), default="14,3,0")
     contacts: Mapped[str] = mapped_column(String(1024), default=DEFAULT_CONTACTS)
+    work_hours: Mapped[str] = mapped_column(String(64), default="09:00–18:00")     # время работы компании
+    bonus_threshold: Mapped[int] = mapped_column(BigInteger, default=20_000_000)  # порог для начисления
+    bonus_amount: Mapped[int] = mapped_column(BigInteger, default=1_000_000)      # начисление за порог
 
 
 class Admin(Base):
@@ -109,6 +114,40 @@ class Master(Base):
     telegram_id: Mapped[int] = mapped_column(BigInteger)
     name: Mapped[str] = mapped_column(String(128))
     kind: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Payment(Base):
+    """Оплата клиента. Из заявки (request_id) или внесённая админом вручную."""
+
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), index=True
+    )
+    amount: Mapped[int] = mapped_column(BigInteger)
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("service_requests.id", ondelete="SET NULL"), nullable=True
+    )
+    comment: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    admin_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class BonusTx(Base):
+    """Движение бонусов: earn (начисление) / spend (списание)."""
+
+    __tablename__ = "bonus_tx"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), index=True
+    )
+    amount: Mapped[int] = mapped_column(BigInteger)   # + начисление / − списание
+    kind: Mapped[str] = mapped_column(String(8))      # earn / spend
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    admin_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

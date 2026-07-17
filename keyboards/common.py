@@ -16,7 +16,7 @@ PERIODS = [(6, "period_6"), (12, "period_12")]
 # тексты кнопок главного меню (оба языка) — FSM-шаги не должны съедать их как ввод
 _MENU_BUTTON_KEYS = [
     "btn_my_equipment", "btn_add_equipment", "btn_call_master",
-    "btn_emergency", "btn_contacts", "btn_change_lang", "btn_admin_panel",
+    "btn_emergency", "btn_contacts", "btn_my_bonuses", "btn_change_lang", "btn_admin_panel",
 ]
 MENU_TEXTS = {t(key, lng) for key in _MENU_BUTTON_KEYS for lng in ("ru", "uz")}
 
@@ -56,8 +56,9 @@ def main_menu_kb(lang: str, admin: bool = False) -> ReplyKeyboardMarkup:
     b.button(text=t("btn_call_master", lang))
     b.button(text=t("btn_emergency", lang))
     b.button(text=t("btn_contacts", lang))
+    b.button(text=t("btn_my_bonuses", lang))
     b.button(text=t("btn_change_lang", lang))
-    layout = [2, 2, 2]
+    layout = [2, 2, 2, 1]
     if admin:
         b.button(text=t("btn_admin_panel", lang))
         layout.append(1)

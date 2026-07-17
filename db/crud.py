@@ -7,14 +7,17 @@ from config import settings as app_config
 from db.base import async_session
 from db.models import (
     Admin,
+    BonusTx,
     Broadcast,
     Equipment,
     Master,
+    Payment,
     ReminderLog,
     ServiceRequest,
     Settings,
     User,
 )
+from services.loyalty import earned_for
 
 
 # ---------- Настройки бота ----------
@@ -41,6 +44,9 @@ async def update_settings(
     reminder_minute: int | None = None,
     reminder_stages: str | None = None,
     contacts: str | None = None,
+    work_hours: str | None = None,
+    bonus_threshold: int | None = None,
+    bonus_amount: int | None = None,
 ) -> None:
     await get_settings()  # гарантирует наличие строки
     async with async_session() as s:
@@ -53,6 +59,12 @@ async def update_settings(
             cfg.reminder_stages = reminder_stages
         if contacts is not None:
             cfg.contacts = contacts
+        if work_hours is not None:
+            cfg.work_hours = work_hours
+        if bonus_threshold is not None:
+            cfg.bonus_threshold = bonus_threshold
+        if bonus_amount is not None:
+            cfg.bonus_amount = bonus_amount
         await s.commit()
 
 
@@ -313,12 +325,63 @@ async def list_new_requests(limit: int = 20) -> list[ServiceRequest]:
         return list(res)
 
 
+async def get_request(request_id: int) -> ServiceRequest | None:
+    async with async_session() as s:
+        return await s.get(ServiceRequest, request_id)
+
+
 async def mark_request_done(request_id: int) -> None:
     async with async_session() as s:
         req = await s.get(ServiceRequest, request_id)
         if req:
             req.status = "done"
             await s.commit()
+
+
+# ---------- Лояльность (оплаты и бонусы) ----------
+
+async def add_payment(
+    user_id: int, amount: int, admin_id: int, request_id: int | None = None, comment: str | None = None
+) -> tuple[int, int]:
+    """Регистрирует оплату, начисляет бонус при пересечении порога.
+
+    Возвращает (начислено_бонусов, новый_баланс_бонусов). Транзакция целиком."""
+    async with async_session() as s:
+        user = await s.get(User, user_id)
+        if not user:
+            return 0, 0
+        cfg = await s.get(Settings, 1)
+        threshold = cfg.bonus_threshold if cfg else 20_000_000
+        bonus = cfg.bonus_amount if cfg else 1_000_000
+
+        earned_before = earned_for(user.total_paid, threshold, bonus)
+        user.total_paid += amount
+        earned_after = earned_for(user.total_paid, threshold, bonus)
+        delta = earned_after - earned_before
+
+        s.add(Payment(user_id=user_id, amount=amount, admin_id=admin_id,
+                      request_id=request_id, comment=comment))
+        if delta > 0:
+            user.bonus_balance += delta
+            s.add(BonusTx(user_id=user_id, amount=delta, kind="earn",
+                          reason="накопительный кешбэк", admin_id=admin_id))
+        await s.commit()
+        return delta, user.bonus_balance
+
+
+async def spend_bonus(user_id: int, amount: int, admin_id: int) -> tuple[int, int]:
+    """Списывает бонусы (не больше баланса). Возвращает (списано, новый_баланс)."""
+    async with async_session() as s:
+        user = await s.get(User, user_id)
+        if not user:
+            return 0, 0
+        spent = min(amount, user.bonus_balance)
+        if spent > 0:
+            user.bonus_balance -= spent
+            s.add(BonusTx(user_id=user_id, amount=-spent, kind="spend",
+                          reason="скидка на услугу", admin_id=admin_id))
+            await s.commit()
+        return spent, user.bonus_balance
 
 
 # ---------- Рассылки ----------

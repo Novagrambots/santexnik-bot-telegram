@@ -121,7 +121,10 @@ async def req_confirm(cb: CallbackQuery, user: User | None):
 # ---------- Контакты ----------
 
 @router.message(F.text.in_({t("btn_contacts", "ru"), t("btn_contacts", "uz")}))
-async def contacts(message: Message, state: FSMContext):
+async def contacts(message: Message, state: FSMContext, lang: str):
     await state.clear()
     cfg = await crud.get_settings()
-    await message.answer(cfg.contacts)
+    text = cfg.contacts
+    if cfg.work_hours:
+        text += "\n" + t("work_hours_line", lang, hours=cfg.work_hours)
+    await message.answer(text)

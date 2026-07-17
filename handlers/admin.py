@@ -20,6 +20,8 @@ from db import crud
 from i18n import kind_label, t
 from keyboards.common import NOT_MENU, cancel_kb, kinds_kb
 from services.access import IsAdmin, is_super_admin
+from services.loyalty import format_money, parse_money
+from services.notify import notify_admins
 from services.reminders import add_months, fmt_date, parse_date, parse_stages
 from services.scheduler import reschedule
 
@@ -37,10 +39,16 @@ class AdmState(StatesGroup):
     set_time = State()
     set_stages = State()
     set_contacts = State()
+    set_workhours = State()
     add_admin = State()
     add_master_id = State()
     add_master_name = State()
     add_master_kind = State()
+    pay_amount = State()
+    spend_amount = State()
+    req_amount = State()
+    set_bonus_thr = State()
+    set_bonus_amt = State()
 
 
 def admin_menu_kb(lang: str, is_super: bool = False) -> InlineKeyboardMarkup:
@@ -141,7 +149,11 @@ async def admin_user_card(cb: CallbackQuery, lang: str):
         await cb.answer(t("a_not_found", lang), show_alert=True)
         return
     items = await crud.list_user_equipment(uid)
-    lines = [f"👤 {user.full_name}", f"📱 {user.phone or '—'}", f"🌐 {user.lang}", f"id: {uid}", ""]
+    lines = [
+        f"👤 {user.full_name}", f"📱 {user.phone or '—'}", f"🌐 {user.lang}", f"id: {uid}",
+        t("a_card_money", lang, paid=format_money(user.total_paid), balance=format_money(user.bonus_balance)),
+        "",
+    ]
     b = InlineKeyboardBuilder()
     if items:
         for eq in items:
@@ -152,6 +164,10 @@ async def admin_user_card(cb: CallbackQuery, lang: str):
     else:
         lines.append(t("a_card_no_equip", lang))
     b.adjust(1)
+    b.row(
+        InlineKeyboardButton(text=t("a_btn_pay", lang), callback_data=f"adm_pay:{uid}"),
+        InlineKeyboardButton(text=t("a_btn_spend", lang), callback_data=f"adm_spend:{uid}"),
+    )
     b.row(InlineKeyboardButton(text=t("a_btn_to_list", lang), callback_data="adm_users:0"))
     await cb.message.edit_text("\n".join(lines), reply_markup=b.as_markup())
     await cb.answer()
@@ -206,12 +222,144 @@ async def admin_requests(cb: CallbackQuery, lang: str):
     await cb.answer()
 
 
+async def _apply_payment(
+    bot: Bot, user_id: int, amount: int, admin_id: int, request_id: int | None = None
+) -> tuple[int, int]:
+    """Учитывает оплату, начисляет бонус и рассылает уведомления. -> (delta, balance)."""
+    delta, balance = await crud.add_payment(user_id, amount, admin_id, request_id=request_id)
+    if delta > 0:
+        user = await crud.get_user(user_id)
+        ulang = user.lang if user else "ru"
+        try:
+            await bot.send_message(
+                user_id,
+                t("bonus_earned", ulang, delta=format_money(delta), balance=format_money(balance)),
+            )
+        except TelegramAPIError:
+            pass
+        await notify_admins(
+            bot, "n_bonus_earned",
+            name=user.full_name if user else str(user_id),
+            delta=format_money(delta), amount=format_money(amount), balance=format_money(balance),
+        )
+    return delta, balance
+
+
 @router.callback_query(F.data.startswith("adm_reqdone:"))
-async def admin_request_done(cb: CallbackQuery, lang: str):
+async def admin_request_done(cb: CallbackQuery, state: FSMContext, lang: str):
     req_id = int(cb.data.split(":", 1)[1])
-    await crud.mark_request_done(req_id)
-    await cb.answer(t("a_req_done_toast", lang))
-    await admin_requests(cb, lang)
+    req = await crud.get_request(req_id)
+    if not req:
+        await admin_requests(cb, lang)
+        await cb.answer()
+        return
+    await state.set_state(AdmState.req_amount)
+    await state.update_data(req_id=req_id, req_user_id=req.user_id)
+    b = InlineKeyboardBuilder()
+    b.button(text=t("a_btn_no_pay", lang), callback_data="adm_req_nopay")
+    b.button(text=t("btn_cancel", lang), callback_data="fsm_cancel")
+    b.adjust(1)
+    await cb.message.answer(t("a_ask_req_amount", lang), reply_markup=b.as_markup())
+    await cb.answer()
+
+
+async def _finish_request(message: Message, state: FSMContext, lang: str, amount: int | None):
+    data = await state.get_data()
+    await state.clear()
+    await crud.mark_request_done(data["req_id"])
+    if amount:
+        delta, balance = await _apply_payment(
+            message.bot, data["req_user_id"], amount, message.from_user.id, request_id=data["req_id"]
+        )
+        await message.answer(
+            t("a_pay_done", lang, amount=format_money(amount),
+              delta=format_money(delta), balance=format_money(balance)),
+            reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+        )
+    else:
+        await message.answer(
+            t("a_req_done_toast", lang),
+            reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+        )
+
+
+@router.callback_query(AdmState.req_amount, F.data == "adm_req_nopay")
+async def admin_req_nopay(cb: CallbackQuery, state: FSMContext, lang: str):
+    await cb.message.edit_reply_markup(reply_markup=None)
+    await _finish_request(cb.message, state, lang, None)
+    await cb.answer()
+
+
+@router.message(AdmState.req_amount, NOT_MENU)
+async def admin_req_amount(message: Message, state: FSMContext, lang: str):
+    amount = parse_money(message.text)
+    if amount is None:
+        await message.answer(t("a_bad_amount", lang), reply_markup=cancel_kb(lang))
+        return
+    await _finish_request(message, state, lang, amount)
+
+
+# ---------- Оплаты и списание бонусов (из карточки клиента) ----------
+
+@router.callback_query(F.data.startswith("adm_pay:"))
+async def admin_pay_start(cb: CallbackQuery, state: FSMContext, lang: str):
+    uid = int(cb.data.split(":", 1)[1])
+    await state.set_state(AdmState.pay_amount)
+    await state.update_data(target_uid=uid)
+    await cb.message.answer(t("a_ask_pay", lang), reply_markup=cancel_kb(lang))
+    await cb.answer()
+
+
+@router.message(AdmState.pay_amount, NOT_MENU)
+async def admin_pay_apply(message: Message, state: FSMContext, lang: str):
+    amount = parse_money(message.text)
+    if amount is None or amount <= 0:
+        await message.answer(t("a_bad_amount", lang), reply_markup=cancel_kb(lang))
+        return
+    data = await state.get_data()
+    await state.clear()
+    delta, balance = await _apply_payment(message.bot, data["target_uid"], amount, message.from_user.id)
+    await message.answer(
+        t("a_pay_done", lang, amount=format_money(amount),
+          delta=format_money(delta), balance=format_money(balance)),
+        reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+    )
+
+
+@router.callback_query(F.data.startswith("adm_spend:"))
+async def admin_spend_start(cb: CallbackQuery, state: FSMContext, lang: str):
+    uid = int(cb.data.split(":", 1)[1])
+    user = await crud.get_user(uid)
+    balance = user.bonus_balance if user else 0
+    await state.set_state(AdmState.spend_amount)
+    await state.update_data(target_uid=uid)
+    await cb.message.answer(t("a_ask_spend", lang, balance=format_money(balance)), reply_markup=cancel_kb(lang))
+    await cb.answer()
+
+
+@router.message(AdmState.spend_amount, NOT_MENU)
+async def admin_spend_apply(message: Message, state: FSMContext, lang: str):
+    amount = parse_money(message.text)
+    if amount is None or amount <= 0:
+        await message.answer(t("a_bad_amount", lang), reply_markup=cancel_kb(lang))
+        return
+    data = await state.get_data()
+    await state.clear()
+    uid = data["target_uid"]
+    spent, balance = await crud.spend_bonus(uid, amount, message.from_user.id)
+    if spent > 0:
+        user = await crud.get_user(uid)
+        ulang = user.lang if user else "ru"
+        try:
+            await message.bot.send_message(
+                uid, t("bonus_spent", ulang, spent=format_money(spent), balance=format_money(balance))
+            )
+        except TelegramAPIError:
+            pass
+    await message.answer(
+        t("a_spend_done", lang, spent=format_money(spent), balance=format_money(balance)),
+        reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+    )
 
 
 # ---------- Настройки ----------
@@ -221,6 +369,8 @@ def _cfg_kb(lang: str) -> InlineKeyboardMarkup:
     b.button(text=t("a_btn_time", lang), callback_data="adm_cfg_time")
     b.button(text=t("a_btn_stages", lang), callback_data="adm_cfg_stages")
     b.button(text=t("a_btn_contacts_cfg", lang), callback_data="adm_cfg_contacts")
+    b.button(text=t("a_btn_workhours_cfg", lang), callback_data="adm_cfg_workhours")
+    b.button(text=t("a_btn_bonus_cfg", lang), callback_data="adm_cfg_bonus")
     b.button(text=t("a_btn_menu", lang), callback_data="adm_home")
     b.adjust(1)
     return b.as_markup()
@@ -234,10 +384,63 @@ async def admin_cfg(cb: CallbackQuery, state: FSMContext, lang: str):
         "a_settings", lang,
         time=f"{cfg.reminder_hour:02d}:{cfg.reminder_minute:02d}",
         stages=cfg.reminder_stages,
+        work_hours=cfg.work_hours,
+        threshold=format_money(cfg.bonus_threshold),
+        bonus=format_money(cfg.bonus_amount),
         contacts=cfg.contacts,
     )
     await cb.message.edit_text(text, reply_markup=_cfg_kb(lang))
     await cb.answer()
+
+
+@router.callback_query(F.data == "adm_cfg_workhours")
+async def admin_cfg_workhours(cb: CallbackQuery, state: FSMContext, lang: str):
+    await state.set_state(AdmState.set_workhours)
+    await cb.message.answer(t("a_ask_workhours", lang), reply_markup=cancel_kb(lang))
+    await cb.answer()
+
+
+@router.message(AdmState.set_workhours, NOT_MENU)
+async def admin_cfg_workhours_apply(message: Message, state: FSMContext, lang: str):
+    await crud.update_settings(work_hours=message.text.strip())
+    await state.clear()
+    await message.answer(
+        t("a_workhours_set", lang),
+        reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+    )
+
+
+@router.callback_query(F.data == "adm_cfg_bonus")
+async def admin_cfg_bonus(cb: CallbackQuery, state: FSMContext, lang: str):
+    await state.set_state(AdmState.set_bonus_thr)
+    await cb.message.answer(t("a_ask_bonus_thr", lang), reply_markup=cancel_kb(lang))
+    await cb.answer()
+
+
+@router.message(AdmState.set_bonus_thr, NOT_MENU)
+async def admin_cfg_bonus_thr(message: Message, state: FSMContext, lang: str):
+    thr = parse_money(message.text)
+    if thr is None or thr <= 0:
+        await message.answer(t("a_bad_amount", lang), reply_markup=cancel_kb(lang))
+        return
+    await state.update_data(bonus_thr=thr)
+    await state.set_state(AdmState.set_bonus_amt)
+    await message.answer(t("a_ask_bonus_amt", lang), reply_markup=cancel_kb(lang))
+
+
+@router.message(AdmState.set_bonus_amt, NOT_MENU)
+async def admin_cfg_bonus_amt(message: Message, state: FSMContext, lang: str):
+    amt = parse_money(message.text)
+    if amt is None or amt <= 0:
+        await message.answer(t("a_bad_amount", lang), reply_markup=cancel_kb(lang))
+        return
+    data = await state.get_data()
+    await state.clear()
+    await crud.update_settings(bonus_threshold=data["bonus_thr"], bonus_amount=amt)
+    await message.answer(
+        t("a_bonus_cfg_set", lang, threshold=format_money(data["bonus_thr"]), bonus=format_money(amt)),
+        reply_markup=admin_menu_kb(lang, is_super_admin(message.from_user.id)),
+    )
 
 
 @router.callback_query(F.data == "adm_cfg_time")

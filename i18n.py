@@ -32,6 +32,7 @@ TEXTS: dict[str, dict[str, str]] = {
     "btn_call_master": {"ru": "🧰 Вызвать мастера", "uz": "🧰 Usta chaqirish"},
     "btn_emergency": {"ru": "🚨 Аварийная заявка", "uz": "🚨 Favqulodda ariza"},
     "btn_contacts": {"ru": "📞 Контакты", "uz": "📞 Kontaktlar"},
+    "btn_my_bonuses": {"ru": "💰 Мои бонусы", "uz": "💰 Mening bonuslarim"},
     "btn_change_lang": {"ru": "🌐 Язык", "uz": "🌐 Til"},
     # --- Виды оборудования (коды -> локализованные названия) ---
     "kind_boiler": {"ru": "Котёл", "uz": "Qozon"},
@@ -140,6 +141,23 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "🚨 Аварийная заявка отправлена! Свяжемся в приоритетном порядке.",
         "uz": "🚨 Favqulodda ariza yuborildi! Birinchi navbatda bog‘lanamiz.",
     },
+    "work_hours_line": {
+        "ru": "🕒 Время работы: {hours}",
+        "uz": "🕒 Ish vaqti: {hours}",
+    },
+    # --- Бонусы (клиент) ---
+    "bonus_screen": {
+        "ru": "💰 Ваши бонусы\n\nБаланс: {balance} сум\nВсего оплачено: {paid} сум\nДо следующей скидки {bonus} сум осталось оплатить: {left} сум",
+        "uz": "💰 Sizning bonuslaringiz\n\nBalans: {balance} so‘m\nJami to‘langan: {paid} so‘m\nKeyingi {bonus} so‘m chegirmagacha to‘lash qoldi: {left} so‘m",
+    },
+    "bonus_earned": {
+        "ru": "🎉 Поздравляем! Вам начислена скидка {delta} сум за оплаченные услуги.\nВаш бонусный баланс: {balance} сум.",
+        "uz": "🎉 Tabriklaymiz! To‘langan xizmatlar uchun sizga {delta} so‘m chegirma berildi.\nBonus balansingiz: {balance} so‘m.",
+    },
+    "bonus_spent": {
+        "ru": "🎁 С вашего бонусного счёта списано {spent} сум (скидка на услугу).\nОстаток: {balance} сум.",
+        "uz": "🎁 Bonus hisobingizdan {spent} so‘m yechildi (xizmatga chegirma).\nQoldiq: {balance} so‘m.",
+    },
     # --- Прочее ---
     "cancelled": {"ru": "Отменено.", "uz": "Bekor qilindi."},
     "not_registered": {
@@ -194,9 +212,32 @@ TEXTS: dict[str, dict[str, str]] = {
     "a_btn_time": {"ru": "🕘 Время напоминаний", "uz": "🕘 Eslatma vaqti"},
     "a_btn_stages": {"ru": "📆 Этапы (дни)", "uz": "📆 Bosqichlar (kun)"},
     "a_btn_contacts_cfg": {"ru": "📞 Контакты", "uz": "📞 Kontaktlar"},
+    "a_btn_workhours_cfg": {"ru": "🕒 Рабочее время", "uz": "🕒 Ish vaqti"},
+    "a_btn_bonus_cfg": {"ru": "🎁 Бонусы (порог/сумма)", "uz": "🎁 Bonuslar (chegara/summa)"},
     "a_settings": {
-        "ru": "⚙️ Настройки\n\n🕘 Время ежедневной проверки: {time}\n📆 Этапы (за сколько дней слать): {stages}\n\n📞 Контакты:\n{contacts}",
-        "uz": "⚙️ Sozlamalar\n\n🕘 Kunlik tekshiruv vaqti: {time}\n📆 Bosqichlar (necha kun oldin): {stages}\n\n📞 Kontaktlar:\n{contacts}",
+        "ru": "⚙️ Настройки\n\n🕘 Время ежедневной проверки: {time}\n📆 Этапы (за сколько дней слать): {stages}\n🕒 Рабочее время: {work_hours}\n🎁 Бонус {bonus} сум за каждые {threshold} сум оплат\n\n📞 Контакты:\n{contacts}",
+        "uz": "⚙️ Sozlamalar\n\n🕘 Kunlik tekshiruv vaqti: {time}\n📆 Bosqichlar (necha kun oldin): {stages}\n🕒 Ish vaqti: {work_hours}\n🎁 Har {threshold} so‘m to‘lovga {bonus} so‘m bonus\n\n📞 Kontaktlar:\n{contacts}",
+    },
+    "a_ask_workhours": {
+        "ru": "Введите время работы (например «09:00–18:00, Пн–Сб»). Клиенты увидят его в разделе «Контакты»:",
+        "uz": "Ish vaqtini kiriting (masalan «09:00–18:00, Du–Sh»). Mijozlar buni «Kontaktlar» bo‘limida ko‘radi:",
+    },
+    "a_workhours_set": {"ru": "✅ Рабочее время обновлено.", "uz": "✅ Ish vaqti yangilandi."},
+    "a_ask_bonus_thr": {
+        "ru": "Введите порог оплат для начисления бонуса (сум), например 20000000:",
+        "uz": "Bonus uchun to‘lov chegarasini kiriting (so‘m), masalan 20000000:",
+    },
+    "a_ask_bonus_amt": {
+        "ru": "Введите сумму бонуса за порог (сум), например 1000000:",
+        "uz": "Chegara uchun bonus summasini kiriting (so‘m), masalan 1000000:",
+    },
+    "a_bad_amount": {
+        "ru": "Нужно число (сумма в сумах). Попробуйте ещё раз.",
+        "uz": "Raqam kerak (so‘mdagi summa). Qayta urinib ko‘ring.",
+    },
+    "a_bonus_cfg_set": {
+        "ru": "✅ Бонус {bonus} сум за каждые {threshold} сум оплат.",
+        "uz": "✅ Har {threshold} so‘m to‘lovga {bonus} so‘m bonus.",
     },
     "a_ask_time": {
         "ru": "Введите время в формате ЧЧ:ММ (например 09:00):",
@@ -270,6 +311,39 @@ TEXTS: dict[str, dict[str, str]] = {
     },
     "a_master_added": {"ru": "✅ Мастер {name} добавлен.", "uz": "✅ Usta {name} qo‘shildi."},
     "a_master_removed": {"ru": "Мастер удалён", "uz": "Usta o‘chirildi"},
+
+    # ================= ОПЛАТЫ И БОНУСЫ (АДМИН) =================
+    "a_card_money": {
+        "ru": "💵 Оплачено: {paid} сум\n💰 Бонусов: {balance} сум",
+        "uz": "💵 To‘langan: {paid} so‘m\n💰 Bonuslar: {balance} so‘m",
+    },
+    "a_btn_pay": {"ru": "💵 Внести платёж", "uz": "💵 To‘lov kiritish"},
+    "a_btn_spend": {"ru": "🎁 Списать бонус", "uz": "🎁 Bonusdan yechish"},
+    "a_ask_pay": {
+        "ru": "Введите сумму оплаты (сум), например 20000000:",
+        "uz": "To‘lov summasini kiriting (so‘m), masalan 20000000:",
+    },
+    "a_ask_spend": {
+        "ru": "Введите сумму списания бонуса (сум). Доступно: {balance} сум.",
+        "uz": "Yechiladigan bonus summasini kiriting (so‘m). Mavjud: {balance} so‘m.",
+    },
+    "a_pay_done": {
+        "ru": "✅ Платёж {amount} сум учтён. Начислено бонуса: {delta} сум. Баланс: {balance} сум.",
+        "uz": "✅ To‘lov {amount} so‘m hisobga olindi. Bonus: {delta} so‘m. Balans: {balance} so‘m.",
+    },
+    "a_spend_done": {
+        "ru": "✅ Списано {spent} сум. Остаток бонусов: {balance} сум.",
+        "uz": "✅ {spent} so‘m yechildi. Bonus qoldig‘i: {balance} so‘m.",
+    },
+    "a_ask_req_amount": {
+        "ru": "Сумма оплаты по заявке (сум), например 20000000. Или нажмите «Без оплаты».",
+        "uz": "Ariza bo‘yicha to‘lov summasi (so‘m), masalan 20000000. Yoki «To‘lovsiz».",
+    },
+    "a_btn_no_pay": {"ru": "Без оплаты", "uz": "To‘lovsiz"},
+    "n_bonus_earned": {
+        "ru": "🎁 Клиенту {name} начислен бонус {delta} сум (оплата {amount} сум). Баланс: {balance} сум.",
+        "uz": "🎁 {name} mijozga {delta} so‘m bonus berildi (to‘lov {amount} so‘m). Balans: {balance} so‘m.",
+    },
 
     # ================= РАССЫЛКА =================
     "bc_seg_all": {"ru": "Все", "uz": "Hammaga"},

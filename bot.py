@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from config import settings
 from db import crud
 from db.migrate import run_migrations
-from handlers import admin, broadcast, equipment, requests, start
+from handlers import admin, bonus, broadcast, equipment, requests, start
 from middlewares.user import UserMiddleware
 from services.scheduler import setup_scheduler
 
@@ -38,6 +38,7 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(equipment.router)
     dp.include_router(requests.router)
+    dp.include_router(bonus.router)
 
     scheduler = await setup_scheduler(bot)
     scheduler.start()
